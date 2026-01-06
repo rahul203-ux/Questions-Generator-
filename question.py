@@ -19,36 +19,43 @@ def get_project_name(project_path):
         return "The Project"
 
 # ---------------------------------
-# Extract Python code elements
+# Analyze Python file
 # ---------------------------------
-def analyze_python_file(file_path):
-    """Extract functions, classes, imports, variables from a Python file."""
-    elements = {"functions": [], "classes": [], "imports": [], "variables": []}
+def analyze_file(file_path):
+    """Parse a Python file and return functions, classes, variables, imports."""
+    functions = []
+    classes = []
+    variables = []
+    imports = []
+
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            tree = ast.parse(f.read(), filename=file_path)
+            tree = ast.parse(f.read())
+
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
-                elements["functions"].append(node.name)
+                functions.append(node.name)
             elif isinstance(node, ast.ClassDef):
-                elements["classes"].append(node.name)
-            elif isinstance(node, ast.Import):
-                for n in node.names:
-                    elements["imports"].append(n.name)
-            elif isinstance(node, ast.ImportFrom):
-                module = node.module if node.module else ""
-                for n in node.names:
-                    elements["imports"].append(f"{module}.{n.name}" if module else n.name)
+                classes.append(node.name)
             elif isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
-                        elements["variables"].append(target.id)
+                        variables.append(target.id)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    imports.append(f"{module}.{alias.name}")
+
     except Exception as e:
-        st.warning(f"⚠️ Could not analyze file: {file_path} ({e})")
-    return elements
+        st.warning(f"⚠️ Could not analyze file {file_path}: {e}")
+
+    return {"functions": functions, "classes": classes, "variables": variables, "imports": imports}
 
 # ---------------------------------
-# Generate questions based on project and code
+# Generate questions
 # ---------------------------------
 def generate_questions(project_path):
     project_path = Path(project_path)
@@ -63,7 +70,7 @@ def generate_questions(project_path):
         f"Who are the intended users of {project_name}?",
         f"Explain the end-to-end workflow of {project_name}.",
         f"What assumptions does {project_name} make?",
-        f"What are the limitations of {project_name}?",
+        f"What are the limitations of {project_name}?"
     ])
 
     # ---- CODE-AWARE QUESTIONS ----
@@ -74,7 +81,7 @@ def generate_questions(project_path):
         python_files.extend(project_path.rglob("*.py"))
 
     for py_file in python_files:
-        elements = analyze_python_file(py_file)
+        elements = analyze_file(py_file)
         file_name = py_file.name
 
         for fn in elements["functions"]:
@@ -86,16 +93,17 @@ def generate_questions(project_path):
         for imp in elements["imports"]:
             questions.append(f"Why is '{imp}' imported in {file_name}?")
 
-    # Ensure 50 questions minimum
+    # ---- FALLBACK QUESTIONS ----
     fallback = [
         "Explain the full execution flow of the project.",
         "Why is this project interview-ready?",
         "What trade-offs did you make?",
         "How would you improve maintainability?",
-        "How would you migrate this project to the cloud?",
+        "How would you migrate this project to the cloud?"
     ]
     while len(questions) < 50:
         questions.extend(fallback)
+
     return questions[:50]
 
 # ---------------------------------
