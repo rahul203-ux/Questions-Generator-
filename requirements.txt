@@ -1,8 +1,2 @@
-<<<<<<< HEAD
 streamlit
 
-=======
-streamlit
-ast
-pathlib
->>>>>>> 952390ec8f67b90354442de1f635b306207211e8
