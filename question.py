@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from pathlib import Path
-
+    
 # ---------------------------------
 # Clean path input (Windows safe)
 # ---------------------------------
@@ -259,4 +259,4 @@ if st.button("Generate Questions"):
 
         for i, q in enumerate(questions, 1):
             st.write(f"**{i}.** {q}")
->>>>>>> 952390ec8f67b90354442de1f635b306207211e8
+
