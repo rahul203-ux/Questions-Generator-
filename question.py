@@ -6,7 +6,7 @@ from collections import Counter
 # ---------------------------------
 # QUESTION GENERATOR (CORE LOGIC)
 # ---------------------------------
-def generate_questions(code, filename, total_required):
+def generate_questions(code, filename):
     tree = ast.parse(code)
 
     functions, classes, variables = [], [], []
@@ -40,7 +40,7 @@ def generate_questions(code, filename, total_required):
     used = set()
 
     def add(q):
-        if q not in used and len(questions) < total_required:
+        if q not in used:
             questions.append(q)
             used.add(q)
 
@@ -95,7 +95,7 @@ def generate_questions(code, filename, total_required):
         add("Which NLP techniques are implicitly used?")
         add("How could feature extraction be improved?")
 
-    return questions[:total_required]
+    return questions
 
 
 # ---------------------------------
@@ -107,18 +107,11 @@ st.set_page_config(
 )
 
 st.title("🧠 Smart Interview Question Generator")
-st.write("Upload a Python file to generate **code-aware interview questions**.")
+st.write("Upload a Python file to generate **smart, code-aware interview questions**.")
 
 uploaded_file = st.file_uploader(
     "📂 Upload your Python file",
     type=["py"]
-)
-
-num_questions = st.number_input(
-    "Enter number of questions to generate",
-    min_value=1,
-    max_value=50,
-    value=10
 )
 
 if uploaded_file and st.button("Generate Questions"):
@@ -127,8 +120,7 @@ if uploaded_file and st.button("Generate Questions"):
 
         questions = generate_questions(
             code,
-            uploaded_file.name,
-            num_questions
+            uploaded_file.name
         )
 
         st.success(f"✅ {len(questions)} Questions Generated")
