@@ -1,116 +1,130 @@
+import os
 import ast
 from pathlib import Path
 import streamlit as st
 
-# -----------------------------
+# ---------------------------------
 # Clean path input (Windows safe)
-# -----------------------------
+# ---------------------------------
 def clean_path(path):
     return path.strip().strip('"').strip("'")
 
-# -----------------------------
-# Analyze Python code
-# -----------------------------
+# ---------------------------------
+# Get project name safely
+# ---------------------------------
+def get_project_name(project_path):
+    try:
+        return Path(project_path).stem.replace("_", " ").title()
+    except:
+        return "The Project"
+
+# ---------------------------------
+# Extract Python code elements
+# ---------------------------------
 def analyze_python_file(file_path):
-    """Extract functions, classes, and imports from a Python file."""
-    functions, classes, imports = [], [], []
+    """Extract functions, classes, imports, variables from a Python file."""
+    elements = {"functions": [], "classes": [], "imports": [], "variables": []}
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             tree = ast.parse(f.read(), filename=file_path)
-
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
-                functions.append(node.name)
+                elements["functions"].append(node.name)
             elif isinstance(node, ast.ClassDef):
-                classes.append(node.name)
+                elements["classes"].append(node.name)
             elif isinstance(node, ast.Import):
                 for n in node.names:
-                    imports.append(n.name)
+                    elements["imports"].append(n.name)
             elif isinstance(node, ast.ImportFrom):
                 module = node.module if node.module else ""
                 for n in node.names:
-                    imports.append(f"{module}.{n.name}" if module else n.name)
-
+                    elements["imports"].append(f"{module}.{n.name}" if module else n.name)
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        elements["variables"].append(target.id)
     except Exception as e:
-        st.error(f"⚠️ Could not analyze file: {e}")
+        st.warning(f"⚠️ Could not analyze file: {file_path} ({e})")
+    return elements
 
-    return functions, classes, imports
-
-# -----------------------------
-# Generate interview questions
-# -----------------------------
-def generate_questions(file_path):
-    functions, classes, imports = analyze_python_file(file_path)
-    project_name = Path(file_path).stem.replace("_", " ").title()
+# ---------------------------------
+# Generate questions based on project and code
+# ---------------------------------
+def generate_questions(project_path):
+    project_path = Path(project_path)
+    project_name = get_project_name(project_path)
     questions = []
 
-    # Generic project questions
+    # ---- GENERIC PROJECT QUESTIONS ----
     questions.extend([
         f"Explain the {project_name} project in detail.",
         f"What real-world problem does {project_name} solve?",
+        f"Why did you decide to build {project_name}?",
         f"Who are the intended users of {project_name}?",
+        f"Explain the end-to-end workflow of {project_name}.",
+        f"What assumptions does {project_name} make?",
+        f"What are the limitations of {project_name}?",
     ])
 
-    # Questions for classes
-    for cls in classes:
-        questions.append(f"Explain the purpose of the class `{cls}` in {project_name}.")
-        questions.append(f"Which methods are implemented in `{cls}` and what do they do?")
-        questions.append(f"How would you test the `{cls}` class?")
+    # ---- CODE-AWARE QUESTIONS ----
+    python_files = []
+    if project_path.is_file() and project_path.suffix == ".py":
+        python_files.append(project_path)
+    elif project_path.is_dir():
+        python_files.extend(project_path.rglob("*.py"))
 
-    # Questions for functions
-    for func in functions:
-        questions.append(f"What does the function `{func}()` do?")
-        questions.append(f"How would you test the `{func}()` function?")
-        questions.append(f"Where is `{func}()` used in the project?")
+    for py_file in python_files:
+        elements = analyze_python_file(py_file)
+        file_name = py_file.name
 
-    # Questions for imports / dependencies
-    for imp in imports:
-        questions.append(f"Why is `{imp}` imported in this project?")
-        questions.append(f"How does `{imp}` help in the project?")
+        for fn in elements["functions"]:
+            questions.append(f"What does the function '{fn}' do in {file_name}?")
+        for cls in elements["classes"]:
+            questions.append(f"Explain the purpose of the class '{cls}' in {file_name}.")
+        for var in elements["variables"]:
+            questions.append(f"What is the role of the variable '{var}' in {file_name}?")
+        for imp in elements["imports"]:
+            questions.append(f"Why is '{imp}' imported in {file_name}?")
 
-    # Fallback questions if total < 50
+    # Ensure 50 questions minimum
     fallback = [
-        "Explain the overall workflow of the project.",
-        "What are potential performance bottlenecks?",
-        "How would you optimize this project?",
-        "What are the security risks?",
+        "Explain the full execution flow of the project.",
+        "Why is this project interview-ready?",
+        "What trade-offs did you make?",
         "How would you improve maintainability?",
+        "How would you migrate this project to the cloud?",
     ]
     while len(questions) < 50:
         questions.extend(fallback)
-
     return questions[:50]
 
-# -----------------------------
+# ---------------------------------
 # STREAMLIT UI
-# -----------------------------
+# ---------------------------------
 st.set_page_config(page_title="Smart Interview Question Generator", layout="wide")
-
 st.title("🧠 Smart Interview Question Generator")
-st.write("Generate *project-specific interview questions* automatically from your Python code.")
+st.write("Generate *project-specific and code-aware interview questions* automatically.")
 
-# Input: Python file path
-project_path = st.text_input(
-    "📂 Enter Python file path",
+project_path_input = st.text_input(
+    "📂 Enter project folder or Python file path",
     key="project_path_input"
 )
 
-# Input: Number of questions
 num_questions = st.number_input(
     "Enter number of questions to generate",
-    min_value=1, max_value=50,
-    value=10,
+    min_value=1,
+    max_value=50,
+    value=5,
     key="num_questions_input"
 )
 
-# Generate questions button
 if st.button("Generate Questions", key="generate_button"):
-    project_path = clean_path(project_path)
+    project_path_input = clean_path(project_path_input)
 
-    if not project_path:
-        st.warning("⚠️ Please enter a valid Python file path")
+    if not project_path_input:
+        st.warning("⚠️ Please enter a project path")
     else:
-        questions = generate_questions(project_path)
+        questions = generate_questions(project_path_input)
         st.success(f"✅ {len(questions)} Questions Generated")
 
         for i, q in enumerate(questions[:num_questions], 1):
